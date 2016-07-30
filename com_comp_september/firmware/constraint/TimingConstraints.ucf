@@ -1,0 +1,90 @@
+#######################################################
+## Timing Constraints:                               ##
+#######################################################
+
+# Board Clock: 50MHz
+NET "OSC_50MHZ" TNM_NET = "Clock";
+TIMESPEC TS_Clock = PERIOD "Clock" 20ns HIGH 50%;
+
+# since I am not clocking any registers with the TCD clocks, 
+# the following two constraints are probably not necessary.
+# kept here for historical reference.
+# TCD RHICstrobe x 5 (~47MHz)
+#NET 	"TCD_5xRS" TNM_NET = TS_TCD_5xRS;
+#TIMESPEC TS_TCD_5xRS = PERIOD "TS_TCD_5xRS" 21.2 ns HIGH 50%;
+
+# NET "TCD_5xRS" CLOCK_DEDICATED_ROUTE = FALSE;
+
+# TCD RHICstrobe
+#NET "TCD_RS" TNM_NET = TS_TCD_RS;
+#TIMESPEC TS_TCD_RS = PERIOD "TS_TCD_RS" TS_TCD_5xRS * 5 HIGH 40%;
+
+# NET "TCD_RS" CLOCK_DEDICATED_ROUTE = FALSE;
+
+# TCD Data pins
+#INST "TCD_D<0>" TNM = TCD_Data_TC;
+#INST "TCD_D<1>" TNM = TCD_Data_TC;
+#INST "TCD_D<2>" TNM = TCD_Data_TC;
+#INST "TCD_D<3>" TNM = TCD_Data_TC;
+#TIMEGRP "TCD_Data_TC" OFFSET = IN 10.6 ns VALID 21.2 ns BEFORE "TCD_5xRS" FALLING;
+
+# These errors are only generated after chip start
+#NET "data_processing_loop*.sdes_insti/ERR" TIG;
+
+
+#NET "deserializer_group[*].sdes_insti/ERR" TIG;
+#NET "deserializer_group[*].sdes_insti/ERR" TNM_NET = "Serdes_ERR_tg";
+#TIMESPEC TS_Serdes_ERR = FROM "Serdes_ERR_tg" TIG ;
+
+# status registers are totally asynchronous, timing doesn't matter
+#NET "sStatusReg*" TNM_NET = "TNM_StatusReg";
+#TIMESPEC TS_StatusReg = TO "TNM_StatusReg" TIG ;
+
+# config registers are totally asynchronouse, timing doesn't matter
+#NET "control_inst/sConfigReg*" TNM_NET = "TNM_ConfigReg";
+#TIMESPEC TS_ConfigReg = FROM "TNM_ConfigReg" TIG ;
+#NET "control_inst/sConfigReg<*>" TIG;
+#NET "control_inst/sPulseReg<*>" TIG;
+
+NET "sMftb_reset" TIG;
+
+#NET "dc_i2c_inst/I2C_DATA_RD<*>" TIG;
+
+#NET "mtb_i2c_inst/sADC1_data<*>" TIG;
+#NET "mtb_i2c_inst/sADC2_data<*>" TIG;
+#NET "mtb_i2c_inst/sADC3_data<*>" TIG;
+
+
+
+##################################################################
+# These constraints don't seem to work
+#
+#NET "sGlobalRST" TIG;
+#
+# event FIFOs cross clock domain from 200MHz to 50 MHz
+# MAXDELAY is supposed to be 2 times the  slower clock period, i.e. 2 times 20ns
+#NET "memory1[*].memi1/U0/xst_fifo_generator/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gcx.clkx/wr_pntr_gc_*" MAXDELAY = 40ns;
+#NET "memory2[*].memi2/U0/xst_fifo_generator/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gcx.clkx/wr_pntr_gc_*" MAXDELAY = 40ns;
+#NET "memory1[*].memi1/U0/xst_fifo_generator/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gcx.clkx/rd_pntr_gc_*" MAXDELAY = 40ns;
+#NET "memory2[*].memi2/U0/xst_fifo_generator/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gcx.clkx/rd_pntr_gc_*" MAXDELAY = 40ns;
+
+# ignore the clock crossing FIFO's read and write pointers
+#NET "memory1[*].memi1/U0/xst_fifo_generator/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gcx.clkx/wr_pntr_gc_*" TIG;
+#NET "memory2[*].memi2/U0/xst_fifo_generator/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gcx.clkx/wr_pntr_gc_*" TIG;
+#NET "memory1[*].memi1/U0/xst_fifo_generator/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gcx.clkx/rd_pntr_gc_*" TIG;
+#NET "memory2[*].memi2/U0/xst_fifo_generator/gconvfifo.rf/grf.rf/gntv_or_sync_fifo.gcx.clkx/rd_pntr_gc_*" TIG;
+
+#INST "deserializer_group[*].sdes_insti/ERR" TNM = Serdes_ERR_tg;
+#TIMESPEC TS_Serdes_Err = FROM "serdes_ERR_tg" TO "FFS" TIG;
+#TIMESPEC TS_Serdes_Err = FROM "serdes_ERR_tg" TIG;
+#
+#NET "deserializer_group[*].sdes_insti/ERR" TNM_NET = "Serdes_ERR_tg";
+#TIMESPEC TS_Serdes_ERR = FROM "Serdes_ERR_tg" TIG;
+#
+#NET "control_inst/sConfigReg[*]" TNM_NET = "ConfigReg_tg";
+#TIMESPEC TS_ConfigReg = FROM "ConfigReg_tg" TIG;
+#
+#NET "sSerdesErr[*]" TIG;
+#NET "sConfigReg[*]" TIG;
+#NET "sPulseReg[*]" TIG;
+##################################################################
