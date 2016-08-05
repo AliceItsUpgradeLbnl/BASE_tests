@@ -1,0 +1,29 @@
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/pxl/!svn/ver/998/trunk/giacomo/ITS_BASEtest_Apr16/scripts/tables
+END
+DUT_I2C_SPI.reg
+K 25
+svn:wc:ra_dav:version-url
+V 85
+/svn/pxl/!svn/ver/998/trunk/giacomo/ITS_BASEtest_Apr16/scripts/tables/DUT_I2C_SPI.reg
+END
+cmdReg.dat
+K 25
+svn:wc:ra_dav:version-url
+V 80
+/svn/pxl/!svn/ver/991/trunk/giacomo/ITS_BASEtest_Apr16/scripts/tables/cmdReg.dat
+END
+ADCDACBOARD_I2C_SPI.reg
+K 25
+svn:wc:ra_dav:version-url
+V 93
+/svn/pxl/!svn/ver/991/trunk/giacomo/ITS_BASEtest_Apr16/scripts/tables/ADCDACBOARD_I2C_SPI.reg
+END
+CH_TO_DUT.corr
+K 25
+svn:wc:ra_dav:version-url
+V 84
+/svn/pxl/!svn/ver/991/trunk/giacomo/ITS_BASEtest_Apr16/scripts/tables/CH_TO_DUT.corr
+END
