@@ -1,7 +1,9 @@
 # BASE_tests
 Firmware and software development for the tests at the BASE facility
 
-Naming rules can be found in file RULES.md
+General rules about the repository can be found in file RULES.md
+
+Instructions on how to download and work on this repository using git and ssh can be found on file INSTRUCTIONS.md
 
 This repository contains the following main subfolders:
 
