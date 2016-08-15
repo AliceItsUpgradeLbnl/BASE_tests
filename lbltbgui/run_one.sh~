@@ -1,0 +1,15 @@
+#!/bin/bash
+
+
+[ ! -z $MODULESHOME ] && module load root 
+
+. ./setup.sh
+
+./build.sh
+
+./bin/testTBGui \
+--tb /home/its/devel/lbltbgui/online_board1_dose20_2016-04-19_01-52-57.dat	
+#--tb online\ data/online_board10_complete.dat \
+	--head 0xc3000009 \
+	--ch 0 --ch 1 --ch 2 --ch 3 --ch 4 --ch 10 --ch 23 \
+        --no-log
