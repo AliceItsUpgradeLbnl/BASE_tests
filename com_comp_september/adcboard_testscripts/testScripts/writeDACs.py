@@ -25,7 +25,7 @@ from threading import Timer
 
 #------------------------------------------ Main ----------------------------------------
 
-os.system("clear")
+#os.system("clear")
 
 def print_time():
     print "INFO:", time.strftime("%Y-%m-%d_%H-%M-%S")
@@ -55,11 +55,12 @@ def WriteAllDACs(mVolts):
     proc.writeAD5624_adcboard("CMD4",hex(stepdata),"7")
     time.sleep(1)
 
-def WriteAllDACsIncremented(scanstart, scanstop, scanstep):
+def WriteAllDACsIncremented(scanstart, scanstop, scanstep, sleeptime):
 
     scanstart = int(scanstart)
     scanstop = int(scanstop)
     scanstep = int(scanstep)
+    sleeptime = int(sleeptime)
 
     for mVolts in range(scanstart, scanstop, scanstep):
         print "new mV setting:", mVolts
@@ -82,7 +83,7 @@ def WriteAllDACsIncremented(scanstart, scanstop, scanstep):
         proc.writeAD5624_adcboard("CMD4",hex(stepdata),"6")
         proc.writeAD5624_adcboard("CMD4",hex(stepdata),"7")
         proc.writeAD5624_adcboard("CMD4",hex(stepdata),"7")
-        time.sleep(1)
+        time.sleep(sleeptime)
 
 def WriteDACs(scanstart, scanstop, scanstep):
     
@@ -117,20 +118,21 @@ def WriteDACs(scanstart, scanstop, scanstep):
     time.sleep(60)
 
 
-#---------------------------------------- Executed --------------------------------------
-print "-----------------------------------------------------------------------------\n"
-print "---------------------------- ADC board test ---------------------------------\n"
-print "-------------------------------Write DACs------------------------------------\n"
+if __name__ == "__main__":
+
+    os.system("clear")
+    print "-----------------------------------------------------------------------------\n"
+    print "---------------------------- ADC board test ---------------------------------\n"
+    print "-------------------------------Write DACs------------------------------------\n"
 
 
-print_time()
-commRDO.openRDO()
-WriteAllDACs(1250)
-#WriteAllDACsIncremented(0, 2000, 1000)
-#time.sleep(60)
-commRDO.closeRDO()
+    print_time()
+    commRDO.openRDO()
+    WriteAllDACs(1250)
+    WriteAllDACsIncremented(0, 2000, 1000, 1)
+    commRDO.closeRDO()
    
 
-print "-----------------------------------------------------------------------------\n"
-print "-------------------------- end of ADC board test ----------------------------\n"
-print "-----------------------------------------------------------------------------\n"
+    print "-----------------------------------------------------------------------------\n"
+    print "-------------------------- end of ADC board test ----------------------------\n"
+    print "-----------------------------------------------------------------------------\n"

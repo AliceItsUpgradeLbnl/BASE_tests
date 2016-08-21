@@ -29,12 +29,6 @@ from threading import Timer
 
 #------------------------------------------ Main ----------------------------------------
 
-os.system("clear")
-
-print "-----------------------------------------------------------------------------\n"
-print "---------------------------- ADC board test ---------------------------------\n"
-print "---------------------------Quick ADC/DAC test--------------------------------\n"
-
 
 def printline(line,log):
     print line
@@ -44,9 +38,22 @@ def printline(line,log):
 def print_time():
     print "INFO:", time.strftime("%Y-%m-%d_%H-%M-%S")
 
-def ADCQuickTest(output,log):
+def ADCQuickTest():
     displayfile = "results/displayfile.log"
 
+    DUTid = raw_input("DUT id : ")
+    startime = time.strftime("%Y-%m-%d_%H-%M-%S")
+    t1 = datetime.datetime.now()
+    output = "results/quicktest" + str(DUTid) + ".dat"
+    log = "results/quicktest" + str(DUTid) + ".log"
+    if os.path.exists(output): # Delete data file with this name if found
+        os.remove(output)
+    if os.path.exists(log): # Delete data file with this name if found
+        os.remove(log)
+    print startime, "ADC Test data on file:", output
+    time.sleep(1)
+
+    commRDO.openRDO()
     # 0) Set DACs to 0V
 
     print('Setting all DAC outputs to 0V \n')
@@ -71,7 +78,7 @@ def ADCQuickTest(output,log):
 
     # 2) Increment DACs, read ADCs
 
-    DAC_Chip = range(0,4,1)
+    DAC_Chip = range(0,8,1)
     DAC_Channel = ("CMD0", "CMD1", "CMD2", "CMD3")
 
     scanstart = 1000
@@ -120,22 +127,21 @@ def ADCQuickTest(output,log):
     print stringInfo
     print "INFO: ADC/DAC Test completed."
     f.close()
+    commRDO.closeRDO()
+    return DUTid
+
 
 if __name__ == "__main__":
-    DUTid = 2
-    startime = time.strftime("%Y-%m-%d_%H-%M-%S")
-    t1 = datetime.datetime.now()
-    #output = "ADCTest/fulltest" + str(DUTid) + "_" + str(startime)+".dat"
-    #log = "ADCTest/fulltest" + str(DUTid) + "_" + str(startime)+".log"
-    output = "results/quicktest" + str(DUTid) + ".dat"
-    log = "results/quicktest" + str(DUTid) + ".log"
-    print startime, "ADC Test data on file:", output
-    time.sleep(1)
-    commRDO.openRDO()
-    ADCQuickTest(output, log)
-    commRDO.closeRDO()
 
-print "-----------------------------------------------------------------------------\n"
-print "-------------------------- end of ADC board test ----------------------------\n"
-print "-----------------------------------------------------------------------------\n"
+    os.system("clear")
+
+    print "-----------------------------------------------------------------------------\n"
+    print "---------------------------- ADC board test ---------------------------------\n"
+    print "---------------------------Quick ADC/DAC test--------------------------------\n"
+
+    ADCQuickTest()
+
+    print "-----------------------------------------------------------------------------\n"
+    print "-------------------------- end of ADC board test ----------------------------\n"
+    print "-----------------------------------------------------------------------------\n"
 

@@ -28,13 +28,6 @@ import datetime
 import writeCMDreg
 from threading import Timer
 
-#------------------------------------------ Main ----------------------------------------
-
-os.system("clear")
-
-print "-----------------------------------------------------------------------------\n"
-print "---------------------------- ADC board test ---------------------------------\n"
-print "--------------------------------Read ADCs------------------------------------\n"
 
 def printline(line,log):
     print line
@@ -44,9 +37,25 @@ def printline(line,log):
 def print_time():
     print "INFO:", time.strftime("%Y-%m-%d_%H-%M-%S")
 
-def ReadADCs(output,log):
+def ReadADCs():
 
     displayfile = "results/displayfile.log"
+    DUTid = str(raw_input("DUTid:" ))
+    folder = "./results/"
+    filename = "ADCtest" + str(DUTid)
+    datafilename = filename
+    startime = time.strftime("%Y-%m-%d_%H-%M-%S")
+    t1 = datetime.datetime.now()
+    output = "results/ADCtest" + str(DUTid) + ".dat"
+    log = "results/ADCtest" + str(DUTid) + ".log"
+
+    if os.path.exists(output): # Delete data file with this name if found
+        os.remove(output)
+    if os.path.exists(log): # Delete data file with this name if found
+        os.remove(log)
+
+    print startime, "ADC read test data on file:", output
+    time.sleep(2)
 
     # open FTDI device
     commRDO.openRDO() 
@@ -116,7 +125,13 @@ def ReadADCs(output,log):
     # close FTDI device
     commRDO.closeRDO()
 
-def ADCDataFormat(datafilename): #Reformats .dat file output by ReadADCs function to a .txt file  
+    return DUTid
+
+def ADCDataFormat(DUTid): #Reformats .dat file output by ReadADCs function to a .txt file  
+
+  folder = "./results/"
+  filename = "ADCtest" + str(DUTid)
+  datafilename = filename
 
   outfile = folder + filename + ".txt"
   infile = folder + filename + ".dat"
@@ -129,9 +144,11 @@ def ADCDataFormat(datafilename): #Reformats .dat file output by ReadADCs functio
   f.close()
   outf.close()
 
-def ADCDataDecoder(datafilename): #Decodes data, calculated mean, stdev for each ADC channel
+def ADCDataDecoder(DUTid): #Decodes data, calculated mean, stdev for each ADC channel
   
   folder = "./results/"
+  filename = "ADCtest" + str(DUTid)
+  datafilename = filename
   
   outfile_ALL = folder + filename + "_noise" + ".txt" 
   infile = folder + filename + ".txt"
@@ -446,34 +463,25 @@ def ADCDataDecoder(datafilename): #Decodes data, calculated mean, stdev for each
   inf.close()
   outf_ALL.close()
   os.remove(infile)
+  print "Test complete"
   
 
 if __name__ == "__main__":
 
-    DUTid = 92
-    folder = "./results/"
-    filename = "ADCtest" + str(DUTid)
-    datafilename = filename
-    startime = time.strftime("%Y-%m-%d_%H-%M-%S")
-    t1 = datetime.datetime.now()
-    output = "results/ADCtest" + str(DUTid) + ".dat"
-    log = "results/ADCtest" + str(DUTid) + ".log"
+    os.system("clear")
 
-    if os.path.exists(output): # Delete data file with this name if found
-        os.remove(output)
-    if os.path.exists(log): # Delete data file with this name if found
-        os.remove(log)
+    print "-----------------------------------------------------------------------------\n"
+    print "---------------------------- ADC board test ---------------------------------\n"
+    print "--------------------------------Read ADCs------------------------------------\n"
 
-    print startime, "ADC read test data on file:", output
-    time.sleep(2)
-    ReadADCs(output, log)
-    time.sleep(2)
+    DUTid = ReadADCs()
+    time.sleep(1)
     print "ADC test complete"
-    ADCDataFormat(datafilename)
-    ADCDataDecoder(datafilename)
+    ADCDataFormat(DUTid)
+    ADCDataDecoder(DUTid)
 
-print "-----------------------------------------------------------------------------\n"
-print "-------------------------- end of ADC board test ----------------------------\n"
-print "-----------------------------------------------------------------------------\n"
+    print "------------------------------------------------------------------------#-----\n"
+    print "-------------------------- end of ADC board test -----------------------#-----\n"
+    print "------------------------------------------------------------------------#-----\n"
 
 
