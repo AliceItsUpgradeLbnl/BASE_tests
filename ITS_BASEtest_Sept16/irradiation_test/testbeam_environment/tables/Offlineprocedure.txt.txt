@@ -1,0 +1,213 @@
+﻿Offline procedure (Before run and after each dose step)
+
+
+1) Test 1 (AF000002): differential amplifiers
+
+
+1.  Disable the amplifiers with an enable pin (make sure they are disabled):
+   1. Set BIT1 of firmware output register to 0
+1.  Set input voltage to the amplifiers to ~20mV (voltage to set at DAC is 10 times higher):
+   1. Can use CMD2 for DAC0 (AD5624 device on the ADC board) with 12-bit data field = x140
+1.  Read the amplifier outputs 10 times consecutively:
+   1. Can read all the ADC on the ADC board 10 times consecutively (10 operations). Can put a sleep between consecutive operations.
+1.  Enable the amplifiers with an enable pin:
+   1. Set BIT1 of firmware output register to 1
+1.  Set input voltage to the amplifiers to 0V:
+   1. Can use CMD2 for DAC0 (AD5624 device on the ADC board) with 12-bit data field set to x000
+1.  Read the amplifier outputs 10 times consecutively:
+   1. Can read all the ADC on the ADC board 10 times consecutively (10 operations). Can put a sleep between consecutive operations.
+1.  Increment input voltage to the amplifiers by ~5 mV:
+   1. Can use CMD2 for DAC0 (AD5624 device on the ADC board) with 12-bit data field +=x050
+1.  Read the amplifier outputs 10 times consecutively:
+   1. Can read all the ADC on the ADC board 10 times consecutively (10 operations). Can put a sleep between consecutive operations.
+1.  Repeat steps g and h till value x320 is reached (repeat also for this value)
+2.  Increment input voltage to the amplifiers by ~15 mV:
+   1. Can use CMD2 for DAC0 (AD5624 device on the ADC board) with 12-bit data field +=x0F0
+1.  Read the amplifier outputs 10 times consecutively:
+   1. Can read all the ADC on the ADC board 10 times consecutively (10 operations). Can put a sleep between consecutive operations.
+1.  Repeat steps j and k till value x7D0 is reached (repeat also for this value)
+2.  Increment input voltage to the amplifiers by ~25 mV:
+   1. Can use CMD2 for DAC0 (AD5624 device) with 12-bit data field +=x190
+1.  Read the amplifier outputs 10 times consecutively:
+   1. Can read all the ADC on the ADC board 10 times consecutively (10 operations). Can put a sleep between consecutive operations.
+1.  Repeat steps m and n till value xFA0 is reached (repeat also for this value)
+  
+2) Test 2 (C1000005): comparator
+
+
+1. Set the following DAC channels to the values:
+   1. DAC0-0 TO 0V (ADCMP603BCPZ_P_IN)
+      1. Can use CMD0 for DAC0 (AD5624 device on the ADC board) with data x000
+   1. DAC0-1 TO 1.25V (ADCMP603BCPZ_N_IN)
+      1. Can use CMD1 for DAC0 (AD5624 device on the ADC board) with data x800
+1. Set high comparator latch enable input using firmware output register
+   1. Set BIT0 of firmware output register to 1
+1. Read comparator outputs using firmware GPIO input register:
+   1. ADCMP603_Q_OUT (BIT0)
+   2. ADCMP603_Q_BAR_OUT (BIT1)
+1. Increment DAC0-0 voltage by ~250mV:
+   1. Can use CMD0 for DAC0 (AD5624 device on the ADC board) with 12-bit data field +=x190
+1. Read comparator outputs using firmware input register:
+   1. ADCMP603_Q_OUT (BIT0)
+   2. ADCMP603_Q_BAR_OUT (BIT1)
+1. Repeat steps d and e till value xFA0 is reached (repeat also for this value)
+2. Repeat steps from a to f but at step b set latch enable to zero
+
+
+3) Test 3 (0D000004): DAC
+
+
+1. Read the DAC outputs on the DUT board 10 times consecutively:
+   1. Can read all the ADC on the ADC board 10 times consecutively (10 operations). Can put a sleep between consecutive operations.
+1. Set DAC AD5671R on the DUT board (all the 8 channels) to 0V via I2C:
+   1. Can use CMD8 with data x000
+1.  Read the DAC outputs on the DUT board 10 times consecutively:
+   1. Can read all the ADC on the ADC board 10 times consecutively (10 operations). Can put a sleep between consecutive operations.
+1. Increment DAC outputs on the DUT board by ~125mV:
+   1. Can use CMD0 with data += x0C8
+   2. Can use CMD1 with data += x0C8
+   3. Can use CMD2 with data += x0C8
+   4. Can use CMD3 with data += x0C8
+   5. Can use CMD4 with data += x0C8
+   6. Can use CMD5 with data += x0C8
+   7. Can use CMD6 with data += x0C8
+   8. Can use CMD7 with data += x0C8
+1. Read the DAC outputs on the DUT board 10 times consecutively:
+   1. Can read all the ADC on the ADC board 10 times consecutively (10 operations). Can put a sleep between consecutive operations.
+1. Repeat steps d and e till value xFA0 is reached (repeat also for this value)
+
+
+4) Test 4 (6D000007): Bridge + Resistance to digital converter
+
+
+1. Set the 1K digital potentiometer on the ADC board to ~100 OHM
+   1. Can use CMD0 for DP_1K (AD5254) on the ADC board with value x19
+1. Read the resistance digital value 4 times from RTD (MAX31865) via the I2C link using the following sequence of commands:
+   1. CMD0 with VALUE xC0
+   2. CMD2
+   3. CMD3
+1. Increase the resistance by ~5 OHM
+   1. Can use CMD0 for DP_1K (AD5254) on the ADC board with data +=x01
+1. Read the resistance digital value 4 times from the RTD (MAX31865) via the I2C link using the following sequence of commands:
+   1. CMD0 with VALUE xC0
+   2. CMD2
+   3. CMD3
+1. Repeat steps c and d till value xFA is reached (repeat also for this value)
+
+
+5) Test 5 (CD00000A): IO expander
+
+
+1. Set all the IO of the open drain IO expander (on the DUT, PCF8574) to ground
+   1. Use CMD0 with data x00
+1. Set 8-bit wide output_port_0 of push-pull IO expander (on the DUT, TCA9535PWR) to VCC (port 0 set to high but not enabled yet, corresponding outputs not enabled)
+   1. Use CMD2 with data xFF
+1. Set 8-bit wide config_port_0 of push-pull IO expander (on the DUT, TCA9535PWR) to ground (port 0 is now configured as an output port and each bit is set to VCC)
+   1. Use CMD4 with data x00
+1. Set 8-bit wide config_port_1 of push-pull IO expander (on the DUT, TCA9535PWR) to VCC (port 1 is set as an input port)
+   1. Use CMD5 with data xFF
+1. Read 8-bit wide input_port_1 of push-pull IO expander (on the DUT, TCA9535PWR)
+   1. Use CMD1
+1. Set the IO of the open drain IO expander (on the DUT, PCF8574) to VCC
+   1. Use CMD0 with data xFF
+1. Set 8-bit wide output_port_0 of push-pull IO expander (on the DUT, TCA9535PWR) to ground
+   1. Use CMD2 with data x00
+1. Read 8-bit wide input_port_1 of push-pull IO expander (on the DUT, TCA9535PWR)
+   1. Use CMD1
+1. Start the Interrupt checker in the firmware
+2. Set IO[bitnum = 0] of the open drain IO expander (on the DUT, PCF8574) to VCC
+   1. Use CMD0 with data 2^bitnum
+1. Read firmware input register to check status of interrupt of TCA9535PWR
+2. Repeat steps from h to k incrementing bitnum till bitnum is equal to 7 (repeat also for this value).
+
+
+6) Test 6 (AD000008): ADC channels
+
+
+1. Set input voltages to 0V
+   1. Can use CMD3 for DAC0 (AD5624 on ADC board) with 12-bit data field set to x000
+   2. Then use CMD0 for DAC1 (AD5624 on ADC board) with 12-bit data field set to x000
+   3. Then use CMD1 for DAC1 (AD5624 on ADC board) with 12-bit data field set to x000
+1. Read voltages from the 8 channels of ADS7830 (one by one, no broadcast command) - 10 times each:
+   1. Use CMD0 for ADS7830 with data x8C to set channel 0 for read
+   2. Repeat 10 times: Use CMD1 for ADS7830 to acquire one sample from channel 0
+   3. Use CMD0 for ADS7830 with data x9C to set channel 1 for read
+   4. Repeat 10 times: Use CMD1 for ADS7830 to acquire one sample from channel 1
+   5. Use CMD0 for ADS7830 with data xAC to set channel 2 for read
+   6. Repeat 10 times: Use CMD1 for ADS7830 to acquire one sample from channel 2
+   7. Use CMD0 for ADS7830 with data xBC to set channel 3 for read
+   8. Repeat 10 times: Use CMD1 for ADS7830 to acquire one sample from channel 3
+   9. Use CMD0 for ADS7830 with data xCC to set channel 4 for read
+   10. Repeat 10 times: Use CMD1 for ADS7830 to acquire one sample from channel 4
+   11. Use CMD0 for ADS7830 with data xDC to set channel 5 for read
+   12. Repeat 10 times: Use CMD1 for ADS7830 to acquire one sample from channel 5
+   13. Use CMD0 for ADS7830 with data xEC to set channel 6 for read
+   14. Repeat 10 times: Use CMD1 for ADS7830 to acquire one sample from channel 6
+   15. Use CMD0 for ADS7830 with data xFC to set channel 7 for read
+   16. Repeat 10 times: Use CMD1 for ADS7830 to acquire one sample from channel 7
+1. Read voltages from 8 channels of ADC128D818 (one by one, no broadcast command) - 10 times each:
+   1. Set device in mode 1 (all single-ended channels, no temp)
+      1. Use CMD1 for ADC128D818 with data x02 
+   1. Set device configuration register
+      1. Use CMD0 for ADC128D818 with data x01
+   1. Repeat 10 times: Use CMD2 for ADC128D818 to acquire one sample from channel 0
+   2. Repeat 10 times: Use CMD3 for ADC128D818 to acquire one sample from channel 1
+   3. Repeat 10 times: Use CMD4 for ADC128D818 to acquire one sample from channel 2
+   4. Repeat 10 times: Use CMD5 for ADC128D818 to acquire one sample from channel 3
+   5. Repeat 10 times: Use CMD6 for ADC128D818 to acquire one sample from channel 4
+   6. Repeat 10 times: Use CMD7 for ADC128D818 to acquire one sample from channel 5
+   7. Repeat 10 times: Use CMD8 for ADC128D818 to acquire one sample from channel 6
+   8. Repeat 10 times: Use CMD9 for ADC128D818 to acquire one sample from channel 7
+1. Read voltages from 8 channels of AD7997 (one by one, no broadcast command) - 10 times each:
+   1. Use CMD0 for AD7997 with data x0018
+   2. Repeat 10 times: Use CMD4 for AD7997 with repeated start and apply mask x0FFC
+   3. Use CMD0 for AD7997 with data x0028
+   4. Repeat 10 times: Use CMD4 for AD7997 with repeated start and apply mask x0FFC
+   5. Use CMD0 for AD7997 with data x0048
+   6. Repeat 10 times: Use CMD4 for AD7997 with repeated start and apply mask x0FFC
+   7. Use CMD0 for AD7997 with data x0088
+   8. Repeat 10 times: Use CMD4 for AD7997 with repeated start and apply mask x0FFC
+   9. Use CMD0 for AD7997 with data x0108
+   10. Repeat 10 times: Use CMD4 for AD7997 with repeated start and apply mask x0FFC
+   11. Use CMD0 for AD7997 with data x0208
+   12. Repeat 10 times: Use CMD4 for AD7997 with repeated start and apply mask x0FFC
+   13. Use CMD0 for AD7997 with data x0408
+   14. Repeat 10 times: Use CMD4 for AD7997 with repeated start and apply mask x0FFC
+   15. Use CMD0 for AD7997 with data x0808
+   16. Repeat 10 times: Use CMD4 for AD7997 with repeated start and apply mask x0FFC
+1. Increment input voltages to the ADC by ~250mV
+   1. Can use CMD3 for DAC0 (AD5624 device on DUT board) with 12-bit data field +=x190
+   2. Then use CMD0 for DAC1 (AD5624 device on DUT board) with 12-bit data field set to +=x190
+   3. Then use CMD1 for DAC1 (AD5624 device on DUT board) with 12-bit data field set to +=x190
+1. Repeat step b, c and d once
+2. Repeat steps e and f till value xFA0 is reached (repeat also for this value)
+
+
+7) Test 7 (CD00000B): I2C driver
+        
+   1. Write a 16-bit register of one of the I2C target devices on the DUT using the irradiated I2C driver (I2C auxiliary channel)
+   2. Read back the content of the register
+   3. Execute steps a and b with the patterns: x5555 and xAAAA 10 times
+
+
+8) Test 8 (CD000003): Differential to single ended driver
+
+
+   1. Set the “Frequency scale factor” field in the firmware CMD register to 0
+   2. Start the differential IO checker in the firmware
+   3. Increment the “Frequency scale factor” field in the firmware CMD register
+   4. Start the differential IO checker in the firmware
+   5. Repeat steps c and d till the scale factor is equal to 31 (repeat also for this value)
+
+
+9) Test 9 (AF00000C): DC-DC converters and FET switches
+
+
+   1.  Disable the DC-DC converters and FET switches with an enable pin (make sure they are disabled):
+   1. Set BIT1 of firmware output register to 0
+   1.  Read the amplifier outputs 10 times consecutively:
+   1. Can read all the ADC on the ADC board 10 times consecutively (10 operations). Can put a sleep between consecutive operations.
+   1.  Enable the DC-DC converters and FET switches with an enable pin:
+   1. Set BIT1 of firmware output register to 1
+   1.  Read the amplifier outputs 10 times consecutively:
+   1. Can read all the ADC on the ADC board 10 times consecutively (10 operations). Can put a sleep between consecutive operations.
