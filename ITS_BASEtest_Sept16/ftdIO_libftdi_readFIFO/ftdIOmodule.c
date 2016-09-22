@@ -1,0 +1,1052 @@
+#ifndef lint
+static char vcid[] = "$Id: ftdIOmodule.c 990 2016-04-08 22:39:25Z gcontin $";
+static const char __attribute__ ((used )) *Get_vcid(){return vcid;}
+#endif /* lint */
+
+#include <Python.h>
+
+#ifdef _FTD2XX
+#include <ftd2xx.h>
+#else
+#include <ftdi.h>
+
+typedef struct ftdi_context * FT_HANDLE;
+
+typedef int FT_STATUS;
+enum {
+	FT_OK,
+	FT_INVALID_HANDLE,
+	FT_DEVICE_NOT_FOUND,
+	FT_DEVICE_NOT_OPENED,
+	FT_IO_ERROR,
+	FT_INSUFFICIENT_RESOURCES,
+	FT_INVALID_PARAMETER,
+	FT_INVALID_BAUD_RATE,
+
+	FT_DEVICE_NOT_OPENED_FOR_ERASE,
+	FT_DEVICE_NOT_OPENED_FOR_WRITE,
+	FT_FAILED_TO_WRITE_DEVICE,
+	FT_EEPROM_READ_FAILED,
+	FT_EEPROM_WRITE_FAILED,
+	FT_EEPROM_ERASE_FAILED,
+	FT_EEPROM_NOT_PRESENT,
+	FT_EEPROM_NOT_PROGRAMMED,
+	FT_INVALID_ARGS,
+	FT_NOT_SUPPORTED,
+	FT_OTHER_ERROR,
+	FT_DEVICE_LIST_NOT_READY,
+};
+#endif
+
+static FT_HANDLE _myFtdi = (FT_HANDLE)NULL;
+
+FT_STATUS _open_ftdi(const char *, FT_HANDLE *);
+FT_STATUS _close_ftdi(FT_HANDLE *);
+FT_STATUS _writeReg(FT_HANDLE, unsigned short, unsigned short);
+FT_STATUS _readReg(FT_HANDLE, unsigned short, unsigned int *);
+FT_STATUS _writeMem(FT_HANDLE, unsigned short, unsigned int *, int);
+FT_STATUS _readMem(FT_HANDLE, unsigned short, unsigned int *, int, int *);
+FT_STATUS _readFifo(FT_HANDLE, unsigned int *, int, int *);
+FT_STATUS _readFifo32(FT_HANDLE, unsigned int, unsigned int *);
+
+const int NUM_MEMORY_IO = 65535;
+
+static PyObject* open_ftdi(PyObject* self, PyObject* args)
+{
+  const char* serial;
+  FT_STATUS ftStatus;
+  
+  if (!PyArg_ParseTuple(args, "s", &serial))
+    return NULL;
+  
+  if (_myFtdi != (FT_HANDLE)NULL) {
+    PyErr_SetString(PyExc_RuntimeError, "Device already open");
+    return NULL;
+  }
+
+  ftStatus = _open_ftdi(serial, &_myFtdi);
+  if (ftStatus != FT_OK) {
+    fprintf(stderr, "open_ftdi failed with status %d\n", ftStatus);
+    PyErr_SetString(PyExc_NameError, "Could not open device with this serial number");
+    return NULL;
+  }
+
+  Py_RETURN_NONE;
+}
+ 
+static PyObject* close_ftdi(PyObject* self, PyObject* args)
+{
+  FT_STATUS ftStatus;
+  
+  if (!PyArg_ParseTuple(args, ""))
+    return NULL;
+  
+  ftStatus = _close_ftdi(&_myFtdi);
+  if (ftStatus != FT_OK) {
+    fprintf(stderr, "close_ftdi failed with status %d\n", ftStatus);
+    PyErr_SetString(PyExc_RuntimeError, "Could not close device");
+    return NULL;
+  }
+  
+  Py_RETURN_NONE;
+}
+ 
+static PyObject* readReg(PyObject* self, PyObject* args)
+{
+  unsigned int address;
+  unsigned int dataW;
+  FT_STATUS ftStatus;
+  
+  if (!PyArg_ParseTuple(args, "i", &address))
+    return NULL;
+  
+  ftStatus = _readReg(_myFtdi, (unsigned short)address, &dataW);
+  if (ftStatus != FT_OK) {
+    fprintf(stderr, "readReg failed with status %d\n", ftStatus);
+    PyErr_SetString(PyExc_IOError, "readReg failed");
+    return NULL;
+  }
+
+  return Py_BuildValue("i", dataW);
+}
+
+static PyObject* writeReg(PyObject* self, PyObject* args)
+{
+  unsigned int address;
+  unsigned int dataW;
+  FT_STATUS ftStatus;
+  
+  if (!PyArg_ParseTuple(args, "ii", &address, &dataW))
+    return NULL;
+  
+  ftStatus = _writeReg(_myFtdi, (unsigned short)address, (unsigned short)dataW);
+  if (ftStatus != FT_OK) {
+    fprintf(stderr, "writeReg returned %d\n", ftStatus);
+    PyErr_SetString(PyExc_IOError, "writeReg failed");
+    return NULL;
+  }
+
+  Py_RETURN_NONE;
+}
+
+static PyObject* readFifo32(PyObject* self, PyObject* args)
+{
+  unsigned int numofwords;
+  unsigned int data;
+  FT_STATUS ftStatus;
+  int i;
+ 
+
+  if (!PyArg_ParseTuple(args, "ii", &numofwords, &data))
+    return NULL;
+  
+  ftStatus = _readFifo32(_myFtdi, (unsigned int)numofwords, &data);
+  //fprintf(stderr, "data is: %i \n", numofwords);
+  for (i=0; i<numofwords; i++) {
+    fprintf(stderr, "data is: %i %i\n", i, data);
+  }
+  if (ftStatus != FT_OK) {
+    fprintf(stderr, "readFifo32 returned %d\n", ftStatus);
+    PyErr_SetString(PyExc_IOError, "readFifo32 failed");
+    return NULL;
+  }
+
+  Py_RETURN_NONE;
+}
+
+
+static PyObject* writeMemFromFile(PyObject* self, PyObject* args)
+{
+  unsigned int address;
+  int fillCount = 0;
+  const char* memFileName;
+  unsigned int *TxIntBuf;
+  FILE *fr;
+  unsigned int val;
+  FT_STATUS ftStatus;
+  char * line = (char *)NULL;
+  ssize_t bytes_read; 
+  size_t nbytes;
+
+  if (!PyArg_ParseTuple(args, "si", &memFileName, &address))
+    return NULL;
+  
+  fr = fopen(memFileName, "r");
+  if (fr == (FILE *)NULL) {
+    PyErr_SetString(PyExc_IOError, "Could not open file");
+    return NULL;
+  }
+  
+  if((bytes_read = getline(&line, &nbytes, fr)) > 0) {
+    if(strncmp(line, "0x", 2) != 0) {
+      PyErr_SetString(PyExc_IOError, "File does not contain hex values");
+      return NULL;
+    }
+    free(line);
+    rewind(fr);
+  }
+  else {
+    fprintf(stderr, "getline from file returned %d\n", (int)bytes_read);
+    PyErr_SetString(PyExc_IOError, "reading file failed");
+    fclose(fr);
+    return NULL;
+  }
+
+  TxIntBuf = (unsigned int *)malloc(NUM_MEMORY_IO*sizeof(unsigned int));
+  while ((fscanf(fr, "%x ", &val) == 1) && (fillCount < NUM_MEMORY_IO)) {
+    TxIntBuf[fillCount++] = val;
+  }
+  fclose(fr);
+  
+  if(fillCount > 0) {
+    ftStatus = _writeMem(_myFtdi, (unsigned short)address, TxIntBuf, fillCount);
+    if (ftStatus != FT_OK) {
+      fprintf(stderr, "writeMem returned %d\n", ftStatus);
+      PyErr_SetString(PyExc_IOError, "writeMemFromFile failed");
+      free((void *)TxIntBuf);
+      return NULL;
+    }
+  }
+  free((void *)TxIntBuf);
+  return Py_BuildValue("i", fillCount);
+}
+
+static PyObject* readMemToFile(PyObject* self, PyObject* args)
+{
+  unsigned int address;
+  int readCount = 0;
+  const char* memFileName;
+  unsigned int *RxIntBuf;
+  FILE *fw;
+  int i;
+  int countReturned;
+  FT_STATUS ftStatus;
+  
+  if (!PyArg_ParseTuple(args, "sii", &memFileName, &address, &readCount))
+    return NULL;
+
+  if((readCount > NUM_MEMORY_IO) || (readCount < 1)) {
+      PyErr_SetString(PyExc_IOError, "count exceeds maximum read size or is 0");
+      return NULL;
+  }
+
+
+  RxIntBuf = (unsigned int *)malloc(readCount*sizeof(unsigned int));
+
+  countReturned = 0;
+  ftStatus = _readMem(_myFtdi, (unsigned short)address, RxIntBuf, readCount, &countReturned);
+  if (ftStatus != FT_OK) {
+    fprintf(stderr, "readMem returned %d\n", ftStatus);
+    PyErr_SetString(PyExc_IOError, "readMemToFile failed");
+    free((void *)RxIntBuf);
+    return NULL;
+  }
+
+  if (countReturned != readCount) {
+    fprintf(stderr, "readMem returned %d words\n", countReturned);
+    PyErr_SetString(PyExc_IOError, "readMemToFile returned wrong count");
+    free((void *)RxIntBuf);
+    return NULL;
+  }
+  
+  fw = fopen(memFileName, "w");
+  if (fw == (FILE *)NULL) {
+    PyErr_SetString(PyExc_IOError, "Could not open file");
+    return NULL;
+  }
+  for (i=0; i<readCount; i++) {
+    fprintf(fw, "0x%x\n", RxIntBuf[i]);
+  }
+  fclose(fw);
+  free((void *)RxIntBuf);
+
+  Py_RETURN_NONE;
+}
+
+static PyObject* readFifoToFile(PyObject* self, PyObject* args)
+{
+  int readCount = 0;
+  const char* memFileName;
+  unsigned int *RxIntBuf;
+  FILE *fw;
+  int i, j;
+  int countReturned;
+  FT_STATUS ftStatus;
+  
+  if (!PyArg_ParseTuple(args, "si", &memFileName, &readCount))
+    return NULL;
+  //  readCount = 14;
+  if((readCount > NUM_MEMORY_IO) || (readCount < 1)) {
+      PyErr_SetString(PyExc_IOError, "count exceeds maximum read size or is 0");
+      return NULL;
+  }
+
+
+  RxIntBuf = (unsigned int *)malloc(readCount*sizeof(unsigned int));
+
+  countReturned = 0;
+  ftStatus = _readFifo(_myFtdi, RxIntBuf, readCount, &countReturned);
+  if (ftStatus != FT_OK) {
+    fprintf(stderr, "readFifo returned %d\n", ftStatus);
+    PyErr_SetString(PyExc_IOError, "readFifoToFile failed");
+    free((void *)RxIntBuf);
+    return NULL;
+  }
+
+  if (countReturned != readCount) {
+    fprintf(stderr, "readFifo returned %d words\n", countReturned);
+    PyErr_SetString(PyExc_IOError, "readFifoToFile returned wrong count");
+    free((void *)RxIntBuf);
+    Py_RETURN_NONE;
+    return NULL;
+    //RxIntBuf = 0;
+  }
+  
+  fw = fopen(memFileName, "ab");
+  if (fw == (FILE *)NULL) {
+    PyErr_SetString(PyExc_IOError, "Could not open file");
+    return NULL;
+  }
+  for (i=0; i<readCount; i++) {
+    
+    fwrite(&RxIntBuf[i],4,1,fw);
+    //    unsigned int *output = &RxIntBuf;
+    if ((RxIntBuf[i] & 0xfff00000) == 0xadc00000) {
+      for (j=0; j<readCount; j++) {
+	fprintf(stderr, "readFifo returned %i %i %x %x \n",i+j,j, &RxIntBuf[i+j],RxIntBuf[i+j] );
+      }
+    }
+    //PyErr_SetString(PyExc_IOError, "readFifoToFile wrote %d", &RxIntBuf[i]);
+  }
+  fclose(fw);
+  free((void *)RxIntBuf);
+//  fw = fopen(memFileName, "w");
+//  if (fw == (FILE *)NULL) {
+//    PyErr_SetString(PyExc_IOError, "Could not open file");
+//    return NULL;
+//  }
+//  for (i=0; i<readCount; i++) {
+//    fprintf(fw, "0x%x\n", RxIntBuf[i]);
+//  }
+//  fclose(fw);
+//  free((void *)RxIntBuf);
+
+  Py_RETURN_NONE;
+}
+
+static PyMethodDef FtdIOMethods[] =
+{
+  {"open_ftdi", open_ftdi, METH_VARARGS, "Open FTDI device by serial number."},
+  {"close_ftdi", close_ftdi, METH_VARARGS, "Close FTDI device if open."},
+  {"readReg", readReg, METH_VARARGS, "Return register value at given address."},
+  {"writeReg", writeReg, METH_VARARGS, "Write data value to register at given address."},
+  {"writeMemFromFile", writeMemFromFile, METH_VARARGS, "Write data read from file to memory at given address."},
+  {"readMemToFile", readMemToFile, METH_VARARGS, "Read data from memory at given address and write to file."},
+  {"readFifoToFile", readFifoToFile, METH_VARARGS, "Read data from FIFO and write to file."},
+  {"readFifo32", readFifo32, METH_VARARGS, "Read 32 bit words from FIFO."},
+  {NULL, NULL, 0, NULL}
+};
+ 
+PyMODINIT_FUNC
+ 
+initftdIO(void)
+{
+  (void) Py_InitModule("ftdIO", FtdIOMethods);
+}
+
+FT_STATUS _open_ftdi(const char *serial, FT_HANDLE *fthandle)
+{
+  int retval;
+  unsigned char Mode, Mask, LatencyTimer;
+
+  // open a device with a specific serial number (last argument to open)
+#ifdef _FTD2XX
+  if ((retval = FT_OpenEx((PVOID)serial, FT_OPEN_BY_SERIAL_NUMBER, fthandle)) != FT_OK) {
+    return retval;
+  }
+#else
+  if ((*fthandle = ftdi_new()) == (FT_HANDLE)NULL) {
+    return -1;
+  }
+
+  // open a device with a specific serial number (last argument to open)
+  if ((retval = ftdi_usb_open_desc(*fthandle, 0x0403, 0x6010, NULL, serial)) < 0) {
+    return retval;
+  }
+#endif
+
+  // Set default parameters:
+  Mode = 0x00; Mask = 0xff; //reset mode
+  LatencyTimer = 16; // our default setting is 16
+
+#ifdef _FTD2XX
+  if((retval = FT_SetBitMode(*fthandle, Mask, Mode)) != FT_OK) return (retval);
+  if((retval = FT_SetLatencyTimer(*fthandle, LatencyTimer)) != FT_OK) return (retval);
+  if((retval = FT_SetUSBParameters(*fthandle, 0x10000, 0x10000)) != FT_OK) return (retval);
+#else
+  if((retval = ftdi_set_bitmode(*fthandle, Mask, Mode)) != FT_OK) return (retval);
+  if((retval = ftdi_set_latency_timer(*fthandle, LatencyTimer)) != FT_OK) return (retval);
+#endif
+
+  return retval;
+}
+
+FT_STATUS _close_ftdi(FT_HANDLE *fthandle)
+{
+  int retval = FT_OK;
+  if (*fthandle != (FT_HANDLE)NULL) {
+#ifdef _FTD2XX
+    if ((retval = FT_Close(*fthandle)) == FT_OK)
+      *fthandle = (FT_HANDLE)NULL;
+#else
+    if ((retval = ftdi_usb_close(*fthandle)) < 0) {
+      return retval;
+    }
+
+    ftdi_free(*fthandle);
+    *fthandle = (FT_HANDLE)NULL;
+#endif
+  }
+  else {
+    fprintf(stderr, "Handle not open\n");
+  }
+  return retval;
+}
+
+
+FT_STATUS _writeReg(FT_HANDLE fthandle, unsigned short address, unsigned short data)
+{
+  int ftStatus;
+  unsigned int TxIntBuffer[2];
+  unsigned int BytesWritten;
+
+  // Write transaction format:
+  // First 32bit word: upper 16 bits = 0xAAAA, lower 8 bits: number of words to follow
+  TxIntBuffer[0] = 0xAAAA0001;
+  // Second 32bit word:	TX[31] = 0 : WRITE
+  //			TX[27:16] = 12bit register address
+  //			TX[15: 0] = 16bit data word to write
+  TxIntBuffer[1] = ((address<<16) & 0x0FFF0000) | (unsigned int)data;
+
+  // Now send  the array
+#ifdef _FTD2XX
+  ftStatus = FT_Write(fthandle, TxIntBuffer, 8, &BytesWritten);
+  if (ftStatus == FT_OK) {
+    // FT_Write OK
+    if (BytesWritten != 8)
+      fprintf(stderr, "FT_Write wrote %d bytes, expected 8 bytes\n", BytesWritten);
+    }
+  else {
+    // FT_Write Failed
+    fprintf(stderr, "Write failed with status %d\n", ftStatus);
+  }
+
+#else
+  BytesWritten = ftdi_write_data(fthandle, (unsigned char *)TxIntBuffer, 8);
+  if (BytesWritten != 8) {
+    fprintf(stderr, "ftdi_write_data returned %d\n",BytesWritten);
+    ftStatus = BytesWritten;
+  }
+  else {
+    ftStatus = FT_OK;
+  }
+#endif
+
+  return(ftStatus);
+}
+
+FT_STATUS _readReg(FT_HANDLE fthandle, unsigned short address, unsigned int *data)
+{
+  int ftStatus;
+  unsigned int TxIntBuffer[3];
+  unsigned int BytesWritten;
+  unsigned char *RxBuffer = (unsigned char *)data;
+#ifdef _FTD2XX
+  unsigned int BytesReceived;
+  unsigned int RxBytes;
+  int i;
+  int timeout;
+#endif
+
+  // "Read" transaction format:
+  // First: do a write transaction to set the address to read:
+
+  // First 32bit word: upper 16 bits = 0xAAAA, lower 8 bits: number of words to follow
+  TxIntBuffer[0] = 0xAAAA0001;
+  // Second 32bit word:	TX[31] = 1 : READ
+  //						TX[27:16] = 12bit register address
+  TxIntBuffer[1] = ((address<<16) & 0x0FFF0000) | 0x80000000;
+  // Third 32bit word: switch firmware to read mode
+  //			a single 32bit word with upper 16 bits = 0xAAAB,
+  //			lower 16 bits: number of 32bit words to read (1)
+  TxIntBuffer[2] = 0xAAAB0001;
+
+  // Now send  the array
+#ifdef _FTD2XX
+  ftStatus = FT_Write(fthandle, TxIntBuffer, 12, &BytesWritten);
+  if (ftStatus == FT_OK) {
+    // FT_Write OK
+    if (BytesWritten != 12)
+      fprintf(stderr, "FT_Write wrote %d bytes, expected 12 bytes\n", BytesWritten);
+    }
+  else {
+    // FT_Write Failed
+    fprintf(stderr, "Write failed with status %d\n", ftStatus);
+    return(ftStatus);
+  }
+#else
+  BytesWritten = ftdi_write_data(fthandle, (unsigned char *)TxIntBuffer, 12);
+  if (BytesWritten != 12) {
+    fprintf(stderr, "ftdi_write_data returned %d\n", BytesWritten);
+    ftStatus = BytesWritten;
+    return (ftStatus);
+  }
+#endif
+
+#ifdef _FTD2XX
+  // Second: do a FTDI read transaction for the desired bytes
+  // check the receive queue first:
+  int timeout = 4;
+  FT_GetQueueStatus(fthandle, &RxBytes);
+  while ((RxBytes != 4) && (timeout-- > 0)) {
+#ifdef _WIN32
+    Sleep(4);
+#else
+    usleep(4000);
+#endif
+    FT_GetQueueStatus(fthandle, &RxBytes);
+  }
+  // if no data available, return error
+  if (RxBytes != 4) return (FT_OTHER_ERROR);
+  
+  // This call will block until "expectedBytes" bytes have been received
+  ftStatus = FT_Read(fthandle, RxBuffer, 4, &BytesReceived);
+  if (ftStatus == FT_OK) {
+    // FT_Read OK
+    if (BytesReceived != 4) {
+      fprintf(stderr, "Read %d bytes:\n", BytesReceived);
+      for (int i=0; i<(int)BytesReceived; i++) {
+	fprintf(stderr, "%d: 0x%x\n", i, (unsigned int)RxBuffer[i]);
+	//fprintf(stderr, "readFifo returned %i 0x%x \n",i, RxBuffer[i]);
+      }
+    }
+  }
+  else {
+    // FT_Read Failed
+    fprintf(stderr, "Read failed with status %d\n", ftStatus);
+  }
+
+#else
+  ftStatus = ftdi_read_data(fthandle, RxBuffer, 4);
+  if (ftStatus == 4) { 
+    // FT_Read OK 
+    ftStatus = FT_OK;
+  }
+  else { 
+    // ftdi_read_data Failed 
+    fprintf(stderr, "Read failed with status %d\n", ftStatus);
+    fprintf(stderr, "%s\n", ftdi_get_error_string(fthandle));
+  } 
+#endif
+
+  return(ftStatus);
+}
+
+
+
+
+
+
+
+FT_STATUS _writeMem(FT_HANDLE fthandle,
+		    unsigned short address,
+		    unsigned int *datap,
+		    int count)
+{
+  int ftStatus;
+  unsigned int *TxIntBuffer;
+  unsigned int BytesWritten;
+  unsigned int numBytesToWrite;
+  int numCmdWords;
+  int num32BWords;
+  int numFullTX;
+  int remainder;
+  int i,j,k;
+
+  // where to write the memory address
+  unsigned int memAddrRegAddress = 17 << 16;
+  // unsigned int memLsb16Address = 18 << 16;
+  // unsigned int memMsb16Address = 19 << 16;
+  unsigned int memLsb16Address = 19 << 16;
+  unsigned int memMsb16Address = 20 << 16;
+
+  // allocate Tx buffer space
+  TxIntBuffer = (unsigned int *)malloc(65536*sizeof(unsigned int));
+
+  // max words per PXL USB protocol "write" packet is 65535
+  // since each command word contains 16 bits of payload, this
+  // limits the number of 32bit words per "write" packet to 32767
+  remainder = count % 32767;
+  numFullTX = count / 32767;
+  if (remainder == 0) numFullTX -= 1; // first 32767 taken care off by sending first packet with address
+
+  // send remainder (or first full 32767 words) first with address:
+  if(remainder == 0)
+    num32BWords = 32767;
+  else
+    num32BWords = remainder;
+  numCmdWords = num32BWords * 2 + 1; // 2 command words per 32bit word plus one command word for address
+  numBytesToWrite = numCmdWords*4 + 4; // 4 bytes per command word plus 4 bytes for header word
+
+  // First 32bit word: upper 16 bits = 0xAAAA, lower 8 bits: number of words to follow
+  TxIntBuffer[0] = 0xAAAA0000 + numCmdWords;
+  // Second 32bit word:	memory address register
+  //			TX[31] = 0 : WRITE
+  //			TX[27:16] = 12bit register address
+  //			TX[15: 0] = 16bit data word to write
+  TxIntBuffer[1] = memAddrRegAddress | (unsigned int)address;
+
+  k = 0;
+  // All following words: LSB16B into register address 18,
+  //			MSB16B into register address 19
+  for(i=0; i<num32BWords; i++) {
+    TxIntBuffer[i*2+2] = memLsb16Address | (datap[k] & 0xFFFF); // LSB16
+    TxIntBuffer[i*2+3] = memMsb16Address | (datap[k] >>16); // MSB16
+    k++;
+  }
+
+
+  // Now send  the array
+#ifdef _FTD2XX
+  ftStatus = FT_Write(fthandle, TxIntBuffer, numBytesToWrite, &BytesWritten);
+  if (ftStatus == FT_OK) {
+    // FT_Write OK
+    if (BytesWritten != numBytesToWrite)
+      fprintf(stderr, "FT_Write wrote %d bytes expected %d bytes\n", BytesWritten, numBytesToWrite);
+    }
+  else {
+    // FT_Write Failed
+    fprintf(stderr, "Write failed with status %d\n", ftStatus);
+  }
+#else
+  BytesWritten = ftdi_write_data(fthandle, (unsigned char *)TxIntBuffer, numBytesToWrite);
+  if (BytesWritten != numBytesToWrite) {
+    fprintf(stderr, "ftdi_write_data returned %d\n", BytesWritten);
+    ftStatus = BytesWritten;
+    return (BytesWritten);
+  }
+  else { 
+    ftStatus = FT_OK;
+  }
+#endif
+
+  // if more than 32767 32bit words:
+  if (numFullTX > 0) {
+    // following transactions are with 32767 32bit words
+    // memory address needs no longer be sent for those,
+    // since the memory address auto-increments in firmware
+    num32BWords = 32767;
+    numCmdWords = num32BWords * 2; // 2 command words per 32bit word
+    numBytesToWrite = numCmdWords*4 + 4; // 4 bytes per command word plus 4 bytes for header word
+    TxIntBuffer[0] = 0xAAAA0000 + numCmdWords;
+    for (j=0; j<numFullTX; j++) {
+      for(i=0; i<num32BWords; i++) {
+        TxIntBuffer[i*2+1] = memLsb16Address | (datap[k] & 0xFFFF); // LSB16
+        TxIntBuffer[i*2+2] = memMsb16Address | (datap[k] >>16); // MSB16
+	    k++;
+      }
+
+      // Now send  the array
+#ifdef _FTD2XX
+      ftStatus = FT_Write(fthandle, TxIntBuffer, numBytesToWrite, &BytesWritten);
+      if (ftStatus == FT_OK) {
+        // FT_Write OK
+        if (BytesWritten != numBytesToWrite)
+	  fprintf(stderr, "FT_Write wrote %d bytes expected %d bytes\n", BytesWritten, numBytesToWrite);
+        }
+      else {
+        // FT_Write Failed
+	fprintf(stderr, "Write failed with status %d\n", ftStatus);
+      }
+#else
+      BytesWritten = ftdi_write_data(fthandle, (unsigned char *)TxIntBuffer, numBytesToWrite);
+      if (BytesWritten != numBytesToWrite) {
+	fprintf(stderr, "ftdi_write_data returned %d\n", BytesWritten);
+	ftStatus = BytesWritten;
+      }
+#endif
+    }
+  }
+
+  // free Tx buffer space
+  free((void *)TxIntBuffer);
+  return(ftStatus);
+}
+
+FT_STATUS _readMem(FT_HANDLE fthandle,
+	    unsigned short address,
+	    unsigned int *datap,
+	    int count,
+	    int *wordsReceived)
+{
+  int ftStatus;
+  unsigned int TxIntBuffer[6];
+  unsigned int BytesWritten;
+  unsigned int RxBytes, BytesReceived, TotalBytesReceived;
+  unsigned int numWordsToRead;
+  int numBytesToRead;
+  unsigned char *cPtr;
+#ifdef _FTD2XX
+  unsigned int EventDWord, TxBytes;
+#endif
+
+  cPtr = (unsigned char *)datap;
+
+  // limit count to 16bits for now:
+  numWordsToRead = (unsigned int)count & 0xFFFF;
+  numBytesToRead = numWordsToRead * 4;
+
+  // where to write the memory address
+  unsigned int memCntRegAddress = 16 << 16;
+  unsigned int memAddrRegAddress = 17 << 16;
+  // unsigned int memMsb16Address = 19 << 16;
+  unsigned int memMsb16Address = 20 << 16;
+
+  // First 32bit word: upper 16 bits = 0xAAAA, lower 8 bits: number of words to follow (3)
+  TxIntBuffer[0] = 0xAAAA0003;
+  // next command word:	memory count register
+  //			TX[31] = 0 : WRITE
+  //			TX[27:16] = 12bit register address
+  //			TX[15: 0] = 16bit count
+  TxIntBuffer[1] = memCntRegAddress | numWordsToRead;
+  // next command word:	memory address register
+  //			TX[31] = 0 : WRITE
+  //			TX[27:16] = 12bit register address
+  //			TX[15: 0] = 16bit memory address
+  TxIntBuffer[2] = memAddrRegAddress | (unsigned int)address;
+
+  // next 32bit word: MSB16B data register to read
+  //			TX[31] = 1 : READ
+  //			TX[27:16] = 12bit register address
+  TxIntBuffer[3] = memMsb16Address | 0x80000000;
+  // final 32bit word: switch firmware to read mode
+  //			a single 32bit word with upper 16 bits = 0xAAAB,
+  //			lower 16 bits: number of 32bit words to read
+  TxIntBuffer[4] = 0xAAAB0000 | numWordsToRead;
+
+
+  // Now send the array
+#ifdef _FTD2XX
+  ftStatus = FT_Write(fthandle, TxIntBuffer, 20, &BytesWritten);
+  if (ftStatus == FT_OK) {
+    // FT_Write OK
+    if (BytesWritten != 20)
+      fprintf(stderr, "FT_Write wrote %d bytes expected 20 bytes\n", BytesWritten);
+    }
+  else {
+    // FT_Write Failed
+    fprintf(stderr, "Write failed with status %d\n", ftStatus);
+    return(ftStatus);
+  }
+#else
+  BytesWritten = ftdi_write_data(fthandle, (unsigned char *)TxIntBuffer, 20);
+  if (BytesWritten != 20) {
+    fprintf(stderr, "ftdi_write_data returned %d\n", BytesWritten);
+    ftStatus = BytesWritten;
+    return (ftStatus);
+  }
+#endif
+
+
+#ifdef _FTD2XX
+  // wait until some bytes are ready to be read
+  FT_GetStatus(fthandle, &RxBytes, &TxBytes, &EventDWord);
+  while (RxBytes == 0) {
+#ifdef _WIN32
+    Sleep(4);
+#else
+    usleep(4000);
+#endif
+    FT_GetStatus(fthandle, &RxBytes, &TxBytes, &EventDWord);
+  }
+#endif
+
+  RxBytes = numBytesToRead;
+
+
+  // Second: do a FTDI read transaction for the desired bytes
+  // This call will block until "expectedBytes" bytes have been received,
+  // so only read available bytes
+  TotalBytesReceived = 0;
+#ifdef _FTD2XX
+  ftStatus = FT_Read(fthandle, cPtr, RxBytes, &BytesReceived);
+  if (ftStatus == FT_OK) {
+    // FT_Read OK
+    TotalBytesReceived = BytesReceived;
+    *wordsReceived = (int)TotalBytesReceived/4;
+
+  }
+  else {
+    // FT_Read Failed
+    fprintf(stderr, "Read failed with status %d\n", ftStatus);
+    return ftStatus;
+  }
+#else
+  ftStatus = ftdi_read_data(fthandle, cPtr, RxBytes);
+  if (ftStatus >= 0) { 
+    // FT_Read OK 
+    BytesReceived = ftStatus;
+
+    if (BytesReceived != RxBytes) {
+      fprintf(stderr, "Read %d bytes\n", ftStatus);
+      //cerr << "Read " << ftStatus << " bytes:" << endl;
+      // for (int i=0; i<ftStatus; i++) {
+      // 	cerr << dec << i << ": " << hex << showbase << (unsigned int)RxBuffer[i] << endl;
+      // }
+    }
+    else {
+      TotalBytesReceived = ftStatus;
+      *wordsReceived = (int)TotalBytesReceived/4;
+    }
+  }
+  else { 
+    // ftdi_read_data Failed 
+    
+    fprintf(stderr, "Read failed with status %d\n", ftStatus);
+    fprintf(stderr, "%s\n", ftdi_get_error_string(fthandle));
+    return ftStatus;
+  } 
+
+#endif
+
+  if ((int)TotalBytesReceived == numBytesToRead) return FT_OK;
+
+#ifdef _FTD2XX
+  // otherwise check if there are more bytes to read
+  cPtr += BytesReceived;
+  FT_GetStatus(fthandle, &RxBytes, &TxBytes, &EventDWord);
+  if (RxBytes > 0) {
+    ftStatus = FT_Read(fthandle, cPtr, RxBytes, &BytesReceived);
+    if (ftStatus == FT_OK) {
+      // FT_Read OK
+      TotalBytesReceived += BytesReceived;
+      *wordsReceived = (int)TotalBytesReceived/4;
+    }
+    else {
+      // FT_Read Failed
+      fprintf(stderr, "Read failed with status %d\n", ftStatus);
+      return ftStatus;
+    }
+  }
+#endif
+
+  return ftStatus;
+}
+
+FT_STATUS _readFifo32(FT_HANDLE fthandle, unsigned int numofwords, unsigned int* data)
+{
+
+// fthandle = Device handle
+// numofwords = Number of 32-bit words to receive (value provided)
+// data = Buffer where the data received will be stored (pointer provided)
+ 
+  int ftStatus = 0 ;
+  fprintf(stderr, "here!!!!!!");
+#ifdef _FTD2XX
+  unsigned int BytesReceived;
+  unsigned int RxBytes;
+  unsigned char *RxBuffer = (unsigned char *)data;
+  unsigned int WordsRead = 0;  // counter for 32-bit words received
+
+
+
+  // Do a FTDI read transaction for the desired bytes
+  
+  // check the receive queue first:
+  int timeout = 4;
+  while (WordsRead < numofwords) {
+    FT_GetQueueStatus(fthandle, &RxBytes);
+    while ((RxBytes < 4) && (timeout-- > 0)) {
+      #ifdef _WIN32
+      Sleep(4);
+        #else
+      usleep(4000);
+      #endif
+      FT_GetQueueStatus(fthandle, &RxBytes);
+    }
+    
+    // if no data available, return error
+    if (RxBytes != 4) return (FT_OTHER_ERROR);
+
+    // fprintf(stderr, "readFifo returned %u %u \n",i, RxBuffer,data[WordsRead]);
+    // This call will block until "expectedBytes" bytes have been received
+    ftStatus = FT_Read(fthandle, RxBuffer, 4, &BytesReceived);
+    WordsRead++;
+    fprintf(stderr, "Read %d bytes:\n", BytesReceived);
+    for (int i=0; i<(int)BytesReceived; i++) {
+      fprintf(stderr, "%d: 0x%x\n", i, (unsigned int)RxBuffer[i]);
+    }
+#endif
+  return(ftStatus);
+  }
+
+
+
+FT_STATUS _readFifo(FT_HANDLE fthandle,
+	    unsigned int *datap,
+	    int count,
+	    int *wordsReceived)
+{
+  int ftStatus;
+  unsigned int TxIntBuffer[6];
+  unsigned int BytesWritten;
+  unsigned int RxBytes, BytesReceived, TotalBytesReceived;
+  unsigned int numWordsToRead;
+  int numBytesToRead;
+  unsigned char *cPtr;
+
+  cPtr = (unsigned char *)datap;
+
+  // limit count to 16bits for now:
+  numWordsToRead = (unsigned int)count & 0xFFFF;
+  numBytesToRead = numWordsToRead * 4;
+
+  // where to write the memory address
+  unsigned int memFifoRegAddress = 25 << 16;
+
+  // First 32bit word: upper 16 bits = 0xAAAA, lower 8 bits: number of words to follow (3)
+  TxIntBuffer[0] = 0xAAAA0001;
+  // next command word:	memory count register
+  //			TX[31] = 0 : WRITE
+  //			TX[27:16] = 12bit register address
+  //			TX[15: 0] = 16bit count
+  //TxIntBuffer[1] = memFifoRegAddress | numWordsToRead;
+  TxIntBuffer[1] = memFifoRegAddress | 0x0;
+
+  // Next 32bit word: switch firmware to read mode
+  //			a single 32bit word with upper 16 bits = 0xAAAB,
+  //			lower 16 bits: number of 32bit words to read (1)
+  TxIntBuffer[2] = 0xAAAB0000 | numWordsToRead;
+  //TxIntBuffer[2] = 0xAAAB0001;
+
+  // Now send the array
+#ifdef _FTD2XX
+  ftStatus = FT_Write(fthandle, TxIntBuffer, 12, &BytesWritten);
+  if (ftStatus == FT_OK) {
+    // FT_Write OK
+    if (BytesWritten != 12)
+      fprintf(stderr, "FT_Write wrote %d bytes, expected 12 bytes\n" << BytesWritten);
+    }
+  else {
+    // FT_Write Failed
+    fprintf(stderr, "Write failed with status %d\n", ftStatus);
+    return(ftStatus);
+  }
+#else
+  BytesWritten = ftdi_write_data(fthandle, (unsigned char *)TxIntBuffer, 12);
+  if (BytesWritten != 12) {
+    fprintf(stderr, "ftdi_write_data returned %d\n", BytesWritten);
+    ftStatus = BytesWritten;
+    return (ftStatus);
+  }
+#endif
+
+
+#ifdef _FTD2XX
+  unsigned int EventDWord, TxBytes;
+  // wait until some bytes are ready to be read
+  FT_GetStatus(fthandle, &RxBytes, &TxBytes, &EventDWord);
+  while (RxBytes == 0) {
+#ifdef _WIN32
+    Sleep(4);
+#else
+    usleep(4000);
+#endif
+    FT_GetStatus(fthandle, &RxBytes, &TxBytes, &EventDWord);
+  }
+#endif
+  RxBytes = numBytesToRead;
+
+  TotalBytesReceived = 0;
+#ifdef _FTD2XX
+  // Second: do a FTDI read transaction for the desired bytes
+  // check the receive queue first:
+  int timeout = 4;
+  FT_GetQueueStatus(fthandle, &RxBytes);
+  while ((RxBytes != 4) && (timeout-- > 0)) {
+#ifdef _WIN32
+    Sleep(4);
+#else
+    usleep(4000);
+#endif
+    FT_GetQueueStatus(fthandle, &RxBytes);
+  }
+  // if no data available, return error
+  if (RxBytes != 4) return (FT_OTHER_ERROR);
+
+  // This call will block until "expectedBytes" bytes have been received,
+  // so only read available bytes
+
+
+  ftStatus = FT_Read(fthandle, cPtr, RxBytes, &BytesReceived);
+  if (ftStatus == FT_OK) {
+    // FT_Read OK
+    TotalBytesReceived = BytesReceived;
+    *wordsReceived = (int)TotalBytesReceived/4;
+
+  }
+  else {
+    // FT_Read Failed
+    fprintf(stderr, "Read failed with status %d\n", ftStatus);
+    return ftStatus;
+  }
+#else
+  ftStatus = ftdi_read_data(fthandle, cPtr, RxBytes);
+  if (ftStatus >= 0) { 
+    // FT_Read OK 
+    BytesReceived = ftStatus;
+    if (BytesReceived != RxBytes) {
+      fprintf(stderr, "Read %d bytes, expected %d bytes\n", ftStatus, RxBytes);
+      //cerr << "Read " << ftStatus << " bytes, expected " 
+      //   << RxBytes << " bytes " << endl;
+      // for (int i=0; i<ftStatus; i++) {
+      // 	cerr << dec << i << ": " << hex << showbase << (unsigned int)cPtr[i] << endl;
+      // }
+    }
+    else {
+      TotalBytesReceived = ftStatus;
+      *wordsReceived = (int)TotalBytesReceived/4;
+    }
+  }
+  else { 
+    // ftdi_read_data Failed 
+    fprintf(stderr, "Read failed with status %d\n", ftStatus);
+    fprintf(stderr, "%s\n", ftdi_get_error_string(fthandle));
+    return ftStatus;
+  } 
+
+#endif
+
+  if ((int)TotalBytesReceived == numBytesToRead) return FT_OK;
+
+#ifdef _FTD2XX
+  // otherwise check if there are more bytes to read
+  cPtr += BytesReceived;
+  FT_GetStatus(fthandle, &RxBytes, &TxBytes, &EventDWord);
+  if (RxBytes > 0) {
+    ftStatus = FT_Read(fthandle, cPtr, RxBytes, &BytesReceived);
+    if (ftStatus == FT_OK) {
+      // FT_Read OK
+      TotalBytesReceived += BytesReceived;
+      *wordsReceived = (int)TotalBytesReceived/4;
+    }
+    else {
+      // FT_Read Failed
+      fprintf(stderr, "Read failed with status %d\n", ftStatus);
+      return ftStatus;
+    }
+  }
+#endif
+
+  return ftStatus;
+}

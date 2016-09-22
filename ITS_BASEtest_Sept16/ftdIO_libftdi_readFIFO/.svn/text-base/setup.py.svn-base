@@ -1,0 +1,13 @@
+# $Id$
+from distutils.core import setup, Extension
+ 
+module1 = Extension('ftdIO',
+                    include_dirs = ['/usr/local/include/libftdi1'],
+                    libraries = ['ftdi1'],
+                    library_dirs = ['/usr/local/lib64'],
+                    sources = ['ftdIOmodule.c'])
+ 
+setup (name = 'PackageName',
+        version = '1.1',
+        description = 'ftdIO functions for Python',
+        ext_modules = [module1])

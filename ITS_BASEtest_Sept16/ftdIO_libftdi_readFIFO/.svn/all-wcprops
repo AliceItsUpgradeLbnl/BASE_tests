@@ -1,0 +1,59 @@
+K 25
+svn:wc:ra_dav:version-url
+V 77
+/svn/pxl/!svn/ver/994/trunk/giacomo/ITS_BASEtest_Apr16/ftdIO_libftdi_readFIFO
+END
+ftdIOmodule_HEX.c
+K 25
+svn:wc:ra_dav:version-url
+V 95
+/svn/pxl/!svn/ver/990/trunk/giacomo/ITS_BASEtest_Apr16/ftdIO_libftdi_readFIFO/ftdIOmodule_HEX.c
+END
+setup.py
+K 25
+svn:wc:ra_dav:version-url
+V 86
+/svn/pxl/!svn/ver/990/trunk/giacomo/ITS_BASEtest_Apr16/ftdIO_libftdi_readFIFO/setup.py
+END
+ftdIO.cbp
+K 25
+svn:wc:ra_dav:version-url
+V 87
+/svn/pxl/!svn/ver/990/trunk/giacomo/ITS_BASEtest_Apr16/ftdIO_libftdi_readFIFO/ftdIO.cbp
+END
+ftdIO.cc
+K 25
+svn:wc:ra_dav:version-url
+V 86
+/svn/pxl/!svn/ver/990/trunk/giacomo/ITS_BASEtest_Apr16/ftdIO_libftdi_readFIFO/ftdIO.cc
+END
+ftdi_utils.cc
+K 25
+svn:wc:ra_dav:version-url
+V 91
+/svn/pxl/!svn/ver/990/trunk/giacomo/ITS_BASEtest_Apr16/ftdIO_libftdi_readFIFO/ftdi_utils.cc
+END
+ftdIOmodule.c
+K 25
+svn:wc:ra_dav:version-url
+V 91
+/svn/pxl/!svn/ver/990/trunk/giacomo/ITS_BASEtest_Apr16/ftdIO_libftdi_readFIFO/ftdIOmodule.c
+END
+Makefile
+K 25
+svn:wc:ra_dav:version-url
+V 86
+/svn/pxl/!svn/ver/990/trunk/giacomo/ITS_BASEtest_Apr16/ftdIO_libftdi_readFIFO/Makefile
+END
+README
+K 25
+svn:wc:ra_dav:version-url
+V 84
+/svn/pxl/!svn/ver/994/trunk/giacomo/ITS_BASEtest_Apr16/ftdIO_libftdi_readFIFO/README
+END
+ftdIO_HEX.cc
+K 25
+svn:wc:ra_dav:version-url
+V 90
+/svn/pxl/!svn/ver/990/trunk/giacomo/ITS_BASEtest_Apr16/ftdIO_libftdi_readFIFO/ftdIO_HEX.cc
+END
