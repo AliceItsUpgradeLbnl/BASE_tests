@@ -1,0 +1,16 @@
+Instructions to generate ftdIO python lib:
+
+ export LD_LIBRARY_PATH=/usr/local/lib
+
+From the ftdIO_libftdi_readFIFO folder, run:
+ make
+This should generate the shared library "ftdIO" in this directory.
+
+From the ftdIO_libftdi_readFIFO folder, run: 
+ python setup.py build
+This should generate the shared library "ftdIO.so" in the directory
+"build/lib.linux-x86_64-2.6".
+
+Create two symbolic links in the "scripts" working directory:
+ln -s ftdIO_libftdi_readFIFO/build/lib.linux-x86_64-2.6/ftdIO.so .
+ln -s ftdIO_libftdi_readFIFO/ftdIO .
