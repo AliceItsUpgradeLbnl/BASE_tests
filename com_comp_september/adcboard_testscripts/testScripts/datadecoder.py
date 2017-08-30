@@ -11,13 +11,14 @@ import numpy
 import os
 import sys
 
-folder = "./results/"
-filename = sys.argv[1]
+#folder = "./results/"
+#filename = sys.argv[1]
 
 totalsamplenumber = 0
 
 def ADCTestDataFormat(filename):
-  
+
+  folder = "./results/"
   outfile = folder + filename + ".txt"
   infile = folder + filename + ".dat"
   outf = open(outfile, 'w')
@@ -287,20 +288,14 @@ def DummyXVariable (filename):
     i = i + 1
 
 def main():
-    
+
+  filename = raw_input("output data file to plot: ")    
   print filename
   ADCTestDataFormat(filename)
   print "reformatting complete!"
   ADCTestDataDecoder(filename)
   print "decoding complete!"
-  #LineCounter(filename)
-  #print "line count complete!"
+ #LineCounter(filename)
+ #print "line count complete!"
   DummyXVariable(filename)
   print "x variable complete!"
-
-#                           execution
-#---------------------------------------------------------------#
-#---------------------------------------------------------------#
-#---------------------------------------------------------------#
-
-main()

@@ -93,7 +93,7 @@ def PlotAllADCs():
   plt.plot(xdata, ADC31, label = 'ADC31')
 
   plt.ylim([-0.5,5.0])
-  plt.xlim([0,100])
+  #plt.xlim([0,100])
   #plt.xlim([0,4000])
 
   plt.title("ADC Board Test Plot")

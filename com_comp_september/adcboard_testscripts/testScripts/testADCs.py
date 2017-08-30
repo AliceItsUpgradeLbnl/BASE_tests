@@ -29,13 +29,6 @@ from threading import Timer
 
 #------------------------------------------ Main ----------------------------------------
 
-os.system("clear")
-
-print "-----------------------------------------------------------------------------\n"
-print "---------------------------- ADC board test ---------------------------------\n"
-print "----------------------------Full ADC/DAC test--------------------------------\n"
-
-
 def printline(line,log):
     print line
     cmdstr="echo "+str(line)+ " >> "  + str(log)
@@ -44,8 +37,21 @@ def printline(line,log):
 def print_time():
     print "INFO:", time.strftime("%Y-%m-%d_%H-%M-%S")
 
-def ADCTest(output,log):
+def ADCTest():
     displayfile = "results/displayfile.log"
+
+    DUTid = raw_input("DUT id : ")
+    startime = time.strftime("%Y-%m-%d_%H-%M-%S")
+    t1 = datetime.datetime.now()
+    output = "results/fulltest" + str(DUTid) + ".dat"
+    log = "results/fulltest" + str(DUTid) + ".log"
+    if os.path.exists(output): # Delete data file with this name if found
+        os.remove(output)
+    if os.path.exists(log): # Delete data file with this name if found
+        os.remove(log)
+    print startime, "ADC Test data on file:", output
+    time.sleep(1)
+    commRDO.openRDO()
 
     # 0) Set DACs to 0V
 
@@ -147,21 +153,20 @@ def ADCTest(output,log):
     print stringInfo
     print "INFO: ADC/DAC Test completed."
     f.close()
+    commRDO.closeRDO()
+    return DUTid
 
 if __name__ == "__main__":
-    DUTid = 100
-    dose = 0
-    startime = time.strftime("%Y-%m-%d_%H-%M-%S")
-    t1 = datetime.datetime.now()
-    output = "results/fulltest" + str(DUTid) + ".dat"
-    log = "results/fulltest" + str(DUTid) + ".log"
-    print startime, "ADC Test data on file:", output
-    time.sleep(1)
-    commRDO.openRDO()
-    ADCTest(output, log)
-    commRDO.closeRDO()
 
-print "-----------------------------------------------------------------------------\n"
-print "-------------------------- end of ADC board test ----------------------------\n"
-print "-----------------------------------------------------------------------------\n"
+    os.system("clear")
+
+    print "-----------------------------------------------------------------------------\n"
+    print "---------------------------- ADC board test ---------------------------------\n"
+    print "----------------------------Full ADC/DAC test--------------------------------\n"
+
+    ADCTest()
+
+    print "-----------------------------------------------------------------------------\n"
+    print "-------------------------- end of ADC board test ----------------------------\n"
+    print "-----------------------------------------------------------------------------\n"
 
